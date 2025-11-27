@@ -1,19 +1,36 @@
 # api.py
-# (v3.2.0 Final API - Manzara Tahmini Çıkarıldı)
+# (v3.3.0 - CORS İzinleri Eklendi)
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware # <-- YENİ EKLENDİ
 from pydantic import BaseModel
 import uvicorn
 import time
 from scorer import QualityScorer
 import config as cfg
 
+# ... (Güvenlik ve Config kısımları aynı) ...
+
 app = FastAPI(
     title="Yaşam Kalitesi Skoru API",
-    description="Emlak değerleme için Yakınlık + Yoğunluk + Topografya bazlı yapay zeka motoru (v3.2)",
-    version="3.2.0"
+    description="Emlak değerleme motoru (v3.3)",
+    version="3.3.0"
 )
 
+# --- YENİ: CORS AYARLARI (BAĞLANTI İÇİN ŞART) ---
+# Bu blok, tarayıcının API'ye erişmesine izin verir.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # "*" = Herkese izin ver (Güvenlik için ileride site adresinle değiştirirsin)
+    allow_credentials=True,
+    allow_methods=["*"], # GET, POST vb. hepsine izin ver
+    allow_headers=["*"],
+)
+# ------------------------------------------------
+
+# ... (Geri kalan kodlar AYNI kalsın: class SkorIstegi, @app.get, @app.post vb.) ...
+# (Kodun tamamını tekrar yapıştırmana gerek yok, sadece app = FastAPI(...) altına
+# yukarıdaki add_middleware bloğunu ekle ve en üste import'u ekle yeterli.)
 
 class SkorIstegi(BaseModel):
     lat: float
