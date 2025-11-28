@@ -1,56 +1,32 @@
 # config.py
-# Emlak Değerleme Motoru - Gelişmiş Yapılandırma (v3.2 Final)
-# Tüm ayarlar Türkiye şehir standartlarına ve emlak literatürüne göre kalibre edilmiştir.
+# Emlak Değerleme Motoru - Final Yapılandırma (v3.5)
 
 import os
 
 # --- GÜVENLİK ---
-# Kodun içine şifre yazmıyoruz! Sunucudan (Environment Variable) okuyacağız.
-# Eğer kendi bilgisayarında test ediyorsan, bu değişkenleri manuel olarak atamalısın.
+# Render'da "Environment Variables" kısmından okunur.
+# Lokal test için PyCharm'da Environment Variables ayarlanmalı veya geçici olarak buraya yazılmalıdır.
 CLIENT_ID = os.environ.get("SH_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("SH_CLIENT_SECRET")
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 1: YEŞİL & SOSYAL SKOR (YAKINLIK + YOĞUNLUK) ---
-# ---------------------------------------------------------------------
+# --- 1. YEŞİL & SOSYAL SKOR (LÜKSLER) ---
 YESIL_SOSYAL_AYARLARI = {
-    "NDVI": {
-        "agirlik": 0.3,
-        "min_esik": 0.15,
-        "max_esik": 0.55
-    },
+    "NDVI": { "agirlik": 0.3, "min_esik": 0.15, "max_esik": 0.55 },
     "POZITIF_ETKENLER": {
         "agirlik": 0.7,
         "yakinlik_agirligi": 0.7,
         "yogunluk_agirligi": 0.3,
         "etiketler": {
-            "deniz_kenari": {
-                "agirlik": 4, "max_mesafe": 2000, "yogunluk_hedefi": 1,
-                "osm_tags": {'natural': ['coastline', 'beach', 'bay']} # 'water' çıkarıldı (Göl/Havuz hatası önlendi)
-            },
-            "market": {
-                "agirlik": 3, "max_mesafe": 800, "yogunluk_hedefi": 5,
-                "osm_tags": {'shop': ['supermarket', 'convenience', 'mall', 'greengrocer']}
-            },
-            "park": {
-                "agirlik": 2, "max_mesafe": 800, "yogunluk_hedefi": 3,
-                "osm_tags": {'leisure': ['park', 'garden', 'playground'], 'natural': ['wood']}
-            },
-            "ulasim": {
-                "agirlik": 1, "max_mesafe": 400, "yogunluk_hedefi": 4,
-                "osm_tags": {'highway': ['bus_stop'], 'public_transport': ['stop_position', 'platform'], 'railway': ['tram_stop']}
-            },
-            "sosyal_tesis": {
-                "agirlik": 2, "max_mesafe": 600, "yogunluk_hedefi": 10,
-                "osm_tags": {'amenity': ['cinema', 'theatre', 'library', 'cafe', 'restaurant', 'bar', 'pub'], 'leisure': ['fitness_centre', 'sports_centre', 'swimming_pool']}
-            }
+            "deniz_kenari": { "agirlik": 4, "max_mesafe": 2000, "yogunluk_hedefi": 1, "osm_tags": {'natural': ['coastline', 'beach', 'bay']} },
+            "market": { "agirlik": 3, "max_mesafe": 800, "yogunluk_hedefi": 5, "osm_tags": {'shop': ['supermarket', 'convenience', 'mall', 'greengrocer']} },
+            "park": { "agirlik": 2, "max_mesafe": 800, "yogunluk_hedefi": 3, "osm_tags": {'leisure': ['park', 'garden', 'playground'], 'natural': ['wood']} },
+            "ulasim": { "agirlik": 1, "max_mesafe": 400, "yogunluk_hedefi": 4, "osm_tags": {'highway': ['bus_stop'], 'public_transport': ['stop_position', 'platform'], 'railway': ['tram_stop']} },
+            "sosyal_tesis": { "agirlik": 2, "max_mesafe": 600, "yogunluk_hedefi": 10, "osm_tags": {'amenity': ['cinema', 'theatre', 'library', 'cafe', 'restaurant', 'bar', 'pub'], 'leisure': ['fitness_centre', 'sports_centre', 'swimming_pool']} }
         }
     }
 }
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 2: YERLEŞİM SKORU (PLATO MODELİ) ---
-# ---------------------------------------------------------------------
+# --- 2. YERLEŞİM SKORU (TATLI NOKTA) ---
 YERLESIM_AYARLARI = {
     "agirliklar": { "okul": 0.35, "saglik": 0.30, "ibadethane": 0.20, "guvenlik": 0.15 },
     "etiketler": {
@@ -61,11 +37,9 @@ YERLESIM_AYARLARI = {
     }
 }
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 3: GÜRÜLTÜ SKORU (NEGATİFLER) ---
-# ---------------------------------------------------------------------
+# --- 3. GÜRÜLTÜ SKORU ---
 GURULTU_AYARLARI = {
-    "max_etki_mesafesi": 500, "min_esik": 200, "max_esik": 5000,
+    "max_etki_mesafesi": 500, "min_esik": 200, "max_esik": 5000, 
     "SONUMLEYICILER": { 'leisure=park': -50, 'natural=wood': -100, 'natural=water': -30 },
     "ETKENLER": {
         "highway": { "motorway": 100, "primary": 80, "trunk": 80, "secondary": 50, "tertiary": 20 },
@@ -77,13 +51,7 @@ GURULTU_AYARLARI = {
     }
 }
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 4: EĞİM VE MANZARA ANALİZİ ---
-# ---------------------------------------------------------------------
-MANZARA_AYARLARI = {
-    "yukseklik_bonusu": { "min_rakim": 20, "iyi_rakim": 60 }
-}
-
+# --- 4. EĞİM ANALİZİ ---
 EGIM_AYARLARI = {
     "kategoriler": {
         "duz": { "max_egim": 3, "etiket": "Düzayak (Mükemmel)", "puan": 100 },
@@ -93,9 +61,7 @@ EGIM_AYARLARI = {
     }
 }
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 5: MAHALLE KARAKTERİ (VIBE) ---
-# ---------------------------------------------------------------------
+# --- 5. MAHALLE KARAKTERİ (VIBE) ---
 VIBE_AYARLARI = {
     "yaricap": 500,
     "kategoriler": {
@@ -105,11 +71,5 @@ VIBE_AYARLARI = {
     }
 }
 
-# ---------------------------------------------------------------------
-# --- BÖLÜM 6: FİNAL SKOR AĞIRLIKLARI ---
-# ---------------------------------------------------------------------
-FINAL_AGIRLIKLAR = {
-    "yesil_sosyal": 0.35,
-    "yerlesim": 0.45,
-    "gurultu": 0.20
-}
+# --- 6. FİNAL AĞIRLIKLAR ---
+FINAL_AGIRLIKLAR = { "yesil_sosyal": 0.35, "yerlesim": 0.45, "gurultu": 0.20 }
