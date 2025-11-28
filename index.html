@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LivabilityAI - Yaşam Kalitesi Skoru</title>
-
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
@@ -20,25 +20,26 @@
                     },
                     colors: {
                         dark: '#0f172a',
-                        card: 'rgba(30, 41, 59, 0.7)',
+                        glass: 'rgba(255, 255, 255, 0.05)',
                     }
                 }
             }
         }
     </script>
-
+    
     <style>
         body { background-color: #0f172a; color: #f8fafc; }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .map-container { height: 400px; width: 100%; border-radius: 1rem; z-index: 1; }
-
-        /* Loading Spinner */
         .loader { border: 4px solid rgba(255,255,255,0.1); border-left-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* Animations */
         .fade-in { animation: fadeIn 0.5s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Scrollbar for places list */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
     </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col selection:bg-blue-500 selection:text-white">
@@ -53,20 +54,17 @@
             <i class="fa-solid fa-city text-blue-400 text-2xl"></i>
             <span class="font-heading text-xl font-bold tracking-wide">Livability<span class="text-blue-400">AI</span></span>
         </div>
-        <a href="#" class="text-sm text-slate-400 hover:text-white transition">v3.2 Beta</a>
+        <span class="text-xs font-mono text-slate-400 border border-slate-700 px-2 py-1 rounded">v3.4 PRO</span>
     </header>
 
     <main class="flex-grow container mx-auto px-4 py-10 max-w-5xl">
-
-        <div id="hero-section" class="text-center mb-12 fade-in">
-            <div class="inline-block px-4 py-1 rounded-full bg-blue-500/10 text-blue-300 text-xs font-bold mb-4 border border-blue-500/20">
-                🚀 YAPAY ZEKA DESTEKLİ EMLAK ANALİZİ
-            </div>
-            <h1 class="font-heading text-4xl md:text-6xl font-bold mb-6 leading-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-white to-purple-200">
-                Evinizin Gerçek <br> Değerini Keşfedin
+        
+        <div id="hero-section" class="text-center mb-8 fade-in">
+            <h1 class="font-heading text-4xl md:text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-200 via-white to-purple-200">
+                Evinizin Gerçek Değeri
             </h1>
-            <p class="text-slate-400 text-lg max-w-2xl mx-auto">
-                Haritadan bir konum seçin. Yapay zeka motorumuz uydu görüntülerini, gürültü haritalarını ve sosyal olanakları analiz edip size gerçek yaşam kalitesi skorunu söylesin.
+            <p class="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
+                Konum seçin, yapay zeka çevresel faktörleri analiz etsin.
             </p>
         </div>
 
@@ -75,177 +73,151 @@
         </div>
 
         <div class="flex flex-col items-center justify-center gap-4 mb-16 fade-in">
-            <p id="coords-display" class="font-mono text-sm text-blue-300 bg-blue-900/30 px-4 py-2 rounded-lg border border-blue-500/30 hidden">
-                Seçilen Konum: <span id="lat-val">0.00</span>, <span id="lon-val">0.00</span>
-            </p>
-
-            <button id="analyze-btn" onclick="analyzeLocation()" disabled class="group relative px-8 py-4 bg-slate-700 text-slate-400 rounded-xl font-bold text-lg transition-all duration-300 w-full md:w-auto min-w-[250px] flex items-center justify-center gap-2 cursor-not-allowed">
-                <span>Haritadan Konum Seçin</span>
-                <i class="fa-solid fa-location-dot"></i>
+            <button id="analyze-btn" onclick="analyzeLocation()" disabled class="group relative px-8 py-3 bg-slate-800 text-slate-500 rounded-xl font-bold transition-all duration-300 w-full md:w-auto min-w-[200px] flex items-center justify-center gap-2 cursor-not-allowed border border-slate-700">
+                <span>Haritadan Seçim Yapın</span>
             </button>
         </div>
 
         <div id="loading-screen" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex flex-col items-center justify-center backdrop-blur-md">
             <div class="loader mb-6"></div>
-            <h3 class="text-2xl font-bold text-white mb-2">Analiz Yapılıyor</h3>
-            <p id="loading-text" class="text-slate-400 text-sm font-mono">Uydu verileri indiriliyor...</p>
+            <h3 class="text-xl font-bold text-white mb-2">Analiz Yapılıyor</h3>
+            <p id="loading-text" class="text-slate-400 text-sm font-mono">Uydu verileri taranıyor...</p>
         </div>
 
-        <div id="results-section" class="hidden space-y-6 fade-in">
-
+        <div id="results-section" class="hidden space-y-6 fade-in pb-20">
+            
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="col-span-1 glass rounded-3xl p-8 flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                <div class="col-span-1 glass rounded-3xl p-6 flex flex-col items-center justify-center text-center relative overflow-hidden group">
                     <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <h3 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">GENEL SKOR</h3>
-
-                    <div class="relative w-40 h-40 flex items-center justify-center">
+                    <h3 class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-4">GENEL YAŞAM SKORU</h3>
+                    
+                    <div class="relative w-32 h-32 flex items-center justify-center">
                         <svg class="w-full h-full" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="45" fill="none" stroke="#1e293b" stroke-width="8" />
                             <circle id="score-circle" cx="50" cy="50" r="45" fill="none" stroke="#3b82f6" stroke-width="8" stroke-dasharray="283" stroke-dashoffset="283" transform="rotate(-90 50 50)" class="transition-all duration-1000 ease-out" />
                         </svg>
                         <div class="absolute inset-0 flex items-center justify-center flex-col">
-                            <span id="main-score" class="text-5xl font-bold font-heading">0</span>
-                            <span class="text-xs text-slate-500">/ 100</span>
+                            <span id="main-score" class="text-4xl font-bold font-heading">0</span>
                         </div>
                     </div>
-
-                    <div id="score-label" class="mt-4 text-xl font-bold text-blue-400">Mükemmel</div>
+                    <div id="score-label" class="mt-4 text-lg font-bold text-blue-400">Mükemmel</div>
                 </div>
 
                 <div class="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="glass rounded-2xl p-6 hover:bg-white/5 transition">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="p-2 bg-purple-500/20 rounded-lg text-purple-400"><i class="fa-solid fa-users-rays"></i></div>
-                            <h4 class="font-semibold">Mahalle Karakteri</h4>
+                    <div class="glass rounded-2xl p-5 hover:bg-white/5 transition">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-users-rays text-purple-400"></i>
+                            <h4 class="font-semibold text-sm">Mahalle Karakteri</h4>
                         </div>
-                        <div id="vibe-tag" class="inline-block px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-md font-bold mb-2 border border-purple-500/30">Analiz Ediliyor...</div>
-                        <p id="vibe-desc" class="text-sm text-slate-400 italic">"..."</p>
+                        <div id="vibe-tag" class="inline-block px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded font-bold mb-2 border border-purple-500/30">Analiz...</div>
+                        <p id="vibe-desc" class="text-xs text-slate-400 italic">"..."</p>
                     </div>
 
-                    <div class="glass rounded-2xl p-6 hover:bg-white/5 transition">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="p-2 bg-emerald-500/20 rounded-lg text-emerald-400"><i class="fa-solid fa-mountain-sun"></i></div>
-                            <h4 class="font-semibold">Coğrafya</h4>
+                    <div class="glass rounded-2xl p-5 hover:bg-white/5 transition">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-mountain text-emerald-400"></i>
+                            <h4 class="font-semibold text-sm">Coğrafya</h4>
                         </div>
-                        <div class="space-y-2 text-sm">
+                        <div class="space-y-1 text-xs">
                             <div class="flex justify-between"><span class="text-slate-400">Rakım:</span> <span id="geo-alt" class="font-mono text-emerald-300">0m</span></div>
                             <div class="flex justify-between"><span class="text-slate-400">Eğim:</span> <span id="geo-slope" class="font-mono text-emerald-300">%0</span></div>
-                            <div class="flex justify-between"><span class="text-slate-400">Durum:</span> <span id="geo-walk" class="text-white">Analiz Ediliyor</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Yürüyüş:</span> <span id="geo-walk" class="text-white">...</span></div>
                         </div>
                     </div>
-
-                    <div class="col-span-1 sm:col-span-2 glass rounded-2xl p-6">
-                         <h4 class="font-semibold mb-4 text-slate-300">Detaylı Puanlar</h4>
-                         <div class="space-y-4">
+                    
+                    <div class="col-span-1 sm:col-span-2 glass rounded-2xl p-5">
+                         <div class="space-y-3">
                              <div>
-                                 <div class="flex justify-between text-xs mb-1">
-                                     <span class="text-slate-400">Yeşil Alan & Sosyal</span>
-                                     <span id="score-green-val" class="text-white font-bold">0</span>
-                                 </div>
-                                 <div class="w-full bg-slate-700 rounded-full h-2"><div id="score-green-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
+                                 <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Sosyal & Yeşil</span><span id="score-green-val" class="text-white font-bold">0</span></div>
+                                 <div class="w-full bg-slate-700 rounded-full h-1.5"><div id="score-green-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
                              </div>
                              <div>
-                                 <div class="flex justify-between text-xs mb-1">
-                                     <span class="text-slate-400">Yerleşim Kalitesi (Okul/Hastane)</span>
-                                     <span id="score-settle-val" class="text-white font-bold">0</span>
-                                 </div>
-                                 <div class="w-full bg-slate-700 rounded-full h-2"><div id="score-settle-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
+                                 <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Yerleşim Kalitesi</span><span id="score-settle-val" class="text-white font-bold">0</span></div>
+                                 <div class="w-full bg-slate-700 rounded-full h-1.5"><div id="score-settle-bar" class="bg-blue-500 h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
                              </div>
                              <div>
-                                 <div class="flex justify-between text-xs mb-1">
-                                     <span class="text-slate-400">Sessizlik & Huzur</span>
-                                     <span id="score-noise-val" class="text-white font-bold">0</span>
-                                 </div>
-                                 <div class="w-full bg-slate-700 rounded-full h-2"><div id="score-noise-bar" class="bg-amber-500 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
+                                 <div class="flex justify-between text-xs mb-1"><span class="text-slate-400">Sessizlik</span><span id="score-noise-val" class="text-white font-bold">0</span></div>
+                                 <div class="w-full bg-slate-700 rounded-full h-1.5"><div id="score-noise-bar" class="bg-amber-500 h-1.5 rounded-full transition-all duration-1000" style="width: 0%"></div></div>
                              </div>
                          </div>
                     </div>
                 </div>
             </div>
-        </div>
 
+            <div class="glass rounded-3xl p-6">
+                <div class="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+                    <div class="p-2 bg-blue-500/20 rounded-lg text-blue-400"><i class="fa-solid fa-map-location-dot"></i></div>
+                    <h3 class="text-lg font-bold">Yakındaki Önemli Yerler</h3>
+                </div>
+                
+                <div id="places-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto custom-scroll pr-2">
+                    <div class="text-slate-500 text-sm text-center col-span-2">Veri yok...</div>
+                </div>
+            </div>
+
+        </div>
     </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+    
     <script>
         // --- AYARLAR ---
-        // Render'dan aldığın URL'i buraya yapıştır. (Sonunda /hesapla OLMASIN, kod ekler)
-        // Örn: "https://yasam-skoru-xxxx.onrender.com"
-        const BASE_API_URL = "https://yasam-skoru-api.onrender.com";
+        // BURAYA KENDİ RENDER URL'İNİ YAZ (Sonunda /hesapla OLMASIN)
+        const BASE_API_URL = "https://yasam-skoru-api.onrender.com"; 
 
-        // Harita Ayarları
-        const map = L.map('map').setView([41.0082, 28.9784], 13); // İstanbul Merkez
+        const map = L.map('map').setView([36.543, 31.999], 13); // Alanya Merkez
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         let selectedMarker = null;
         let selectedLat = null;
         let selectedLon = null;
 
-        // Harita Tıklama Olayı
         map.on('click', function(e) {
             selectedLat = e.latlng.lat;
             selectedLon = e.latlng.lng;
-
-            if (selectedMarker) {
-                map.removeLayer(selectedMarker);
-            }
-
+            if (selectedMarker) map.removeLayer(selectedMarker);
             selectedMarker = L.marker([selectedLat, selectedLon]).addTo(map);
-
-            // UI Güncelle
-            document.getElementById('lat-val').innerText = selectedLat.toFixed(5);
-            document.getElementById('lon-val').innerText = selectedLon.toFixed(5);
-            document.getElementById('coords-display').classList.remove('hidden');
-
+            
             const btn = document.getElementById('analyze-btn');
             btn.disabled = false;
-            btn.classList.remove('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
-            btn.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-500', 'hover:scale-105');
+            btn.className = "group relative px-8 py-3 bg-blue-600 text-white rounded-xl font-bold transition-all duration-300 w-full md:w-auto min-w-[200px] flex items-center justify-center gap-2 hover:scale-105 hover:bg-blue-500 shadow-lg shadow-blue-500/30";
             btn.innerHTML = `<span>Analiz Et</span> <i class="fa-solid fa-rocket"></i>`;
         });
 
-        // API Fonksiyonu
         async function analyzeLocation() {
             if (!selectedLat || !selectedLon) return;
 
-            // Loading Göster
             const loading = document.getElementById('loading-screen');
             const loadingText = document.getElementById('loading-text');
             loading.classList.remove('hidden');
-
-            const messages = ["Uydu görüntüleri işleniyor...", "Gürültü haritası taranıyor...", "Yapay zeka skoru hesaplıyor..."];
+            
+            const messages = ["Uydu görüntüleri işleniyor...", "Gürültü haritası taranıyor...", "Mekanlar listeleniyor...", "Skor hesaplanıyor..."];
             let msgIdx = 0;
             const msgInterval = setInterval(() => {
                 loadingText.innerText = messages[msgIdx];
                 msgIdx = (msgIdx + 1) % messages.length;
-            }, 3000);
+            }, 2000);
 
             try {
-                // --- API İSTEĞİ ---
                 const response = await fetch(`${BASE_API_URL}/hesapla`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ lat: selectedLat, lon: selectedLon })
                 });
 
-                if (!response.ok) throw new Error("API Hatası");
+                if (!response.ok) throw new Error("API Bağlantı Hatası");
 
                 const data = await response.json();
-
-                // Verileri Doldur
                 updateUI(data);
-
-                // Sonuçları Göster
                 document.getElementById('results-section').classList.remove('hidden');
-
-                // Scroll
-                document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+                setTimeout(() => {
+                    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+                }, 100);
 
             } catch (error) {
-                alert("Bir hata oluştu: " + error.message + "\nAPI adresini kontrol edin.");
+                alert("Hata: " + error.message + "\nAPI adresini index.html içinde düzelttin mi?");
             } finally {
                 clearInterval(msgInterval);
                 loading.classList.add('hidden');
@@ -255,40 +227,75 @@
         function updateUI(data) {
             const ozellik = data.ozellikler;
             const skor = data.skor_ozeti;
+            const mekanlar = data.yakin_yerler || []; // Yeni liste
 
-            // Genel Skor Dairesi
+            // Skor Dairesi
             const circle = document.getElementById('score-circle');
-            const radius = 45;
-            const circumference = 2 * Math.PI * radius;
-            const offset = circumference - (skor.genel_skor / 100) * circumference;
-
+            const offset = 283 - (skor.genel_skor / 100) * 283;
             circle.style.strokeDashoffset = offset;
-
-            // Renk Belirle
-            let color = "#ef4444"; // Kırmızı
-            let label = "Geliştirilebilir";
-            if(skor.genel_skor > 60) { color = "#f59e0b"; label = "İyi"; } // Sarı
-            if(skor.genel_skor > 80) { color = "#10b981"; label = "Mükemmel"; } // Yeşil
-
+            
+            let color = "#ef4444"; let label = "Zayıf";
+            if(skor.genel_skor > 50) { color = "#f59e0b"; label = "Ortalama"; }
+            if(skor.genel_skor > 70) { color = "#3b82f6"; label = "İyi"; }
+            if(skor.genel_skor > 85) { color = "#10b981"; label = "Mükemmel"; }
+            
             circle.style.stroke = color;
-            document.getElementById('main-score').innerText = skor.genel_skor;
-            document.getElementById('main-score').style.color = color;
+            const mainScoreEl = document.getElementById('main-score');
+            mainScoreEl.innerText = skor.genel_skor;
+            mainScoreEl.style.color = color;
             const labelEl = document.getElementById('score-label');
             labelEl.innerText = label;
             labelEl.style.color = color;
 
-            // Vibe & Geo
+            // Detaylar
             document.getElementById('vibe-tag').innerText = ozellik.mahalle_karakteri.etiket;
             document.getElementById('vibe-desc').innerText = ozellik.mahalle_karakteri.aciklama;
-
             document.getElementById('geo-alt').innerText = ozellik.cografya.rakim;
             document.getElementById('geo-slope').innerText = ozellik.cografya.egim_orani;
             document.getElementById('geo-walk').innerText = ozellik.cografya.yurunebilirlik;
 
-            // Barlar
             updateBar('score-green', skor.detaylar.yesil_sosyal);
             updateBar('score-settle', skor.detaylar.yerlesim);
             updateBar('score-noise', skor.detaylar.gurultu);
+
+            // --- YENİ: MEKAN LİSTESİ OLUŞTURMA ---
+            const listContainer = document.getElementById('places-container');
+            listContainer.innerHTML = ""; // Temizle
+            
+            if (mekanlar.length === 0) {
+                listContainer.innerHTML = '<div class="col-span-2 text-center text-slate-500 italic p-4">Yakınlarda önemli bir yer bulunamadı.</div>';
+            } else {
+                // Kategoriye göre ikon seçimi
+                const getIcon = (cat) => {
+                    if(cat.includes('market')) return 'fa-cart-shopping text-green-400';
+                    if(cat.includes('okul')) return 'fa-graduation-cap text-blue-400';
+                    if(cat.includes('saglik')) return 'fa-heart-pulse text-red-400';
+                    if(cat.includes('ulasim')) return 'fa-bus text-yellow-400';
+                    if(cat.includes('park')) return 'fa-tree text-emerald-400';
+                    if(cat.includes('deniz')) return 'fa-water text-cyan-400';
+                    return 'fa-location-dot text-slate-400';
+                };
+
+                mekanlar.forEach(mekan => {
+                    const itemHtml = `
+                        <div class="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5 hover:bg-white/10 transition">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
+                                    <i class="fa-solid ${getIcon(mekan.kategori)} text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-sm text-slate-200">${mekan.isim}</div>
+                                    <div class="text-xs text-slate-500 capitalize">${mekan.kategori.replace('_', ' ')}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-mono text-sm text-blue-300">${mekan.mesafe}m</div>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.innerHTML += itemHtml;
+                });
+            }
         }
 
         function updateBar(idPrefix, value) {
