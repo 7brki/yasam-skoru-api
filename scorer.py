@@ -1,5 +1,6 @@
 # scorer.py
-# Emlak Değerleme Motoru - Hesaplama Çekirdeği (v3.3.0 Final)
+# (v3.4.0 - DETAYLI MEKAN LİSTESİ MODU)
+# Artık sadece skor değil, bulunan yerlerin listesini de (İsim, Mesafe) döndürür.
 
 import warnings
 import geopandas as gpd
@@ -9,7 +10,6 @@ from shapely.geometry import Point
 from sentinelhub import CRS, BBox, SHConfig
 import cache_manager
 import requests
-import config as cfg
 
 ox.settings.log_console = False
 warnings.filterwarnings('ignore')
@@ -40,26 +40,35 @@ class QualityScorer:
         self.point_geom = Point(lon, lat)
         self.bbox = BBox(bbox=(lon - 0.005, lat - 0.005, lon + 0.005, lat + 0.005), crs=CRS.WGS84)
 
+        # Bulunan mekanları saklayacak liste
+        self.detected_places = []
         self.distance_to_sea = float('inf')
 
         try:
-            # OSMnx sürüm bağımsız projeksiyon tespiti
             temp_gdf = gpd.GeoDataFrame(geometry=[self.point_geom], crs="EPSG:4326")
             self.crs_utm = temp_gdf.estimate_utm_crs()
         except Exception:
             self.crs_utm = "EPSG:32636"
 
         self.sh_config = SHConfig()
-        if config.CLIENT_ID and config.CLIENT_SECRET:
+        if hasattr(config, 'CLIENT_ID') and hasattr(config, 'CLIENT_SECRET'):
             self.sh_config.sh_client_id = config.CLIENT_ID
             self.sh_config.sh_client_secret = config.CLIENT_SECRET
 
         print(f"QualityScorer motoru {self.point} koordinatı için başlatıldı.")
 
     def _get_poi_name(self, row):
-        if 'name' in row and pd.notna(row['name']): return row['name']
-        if 'brand' in row and pd.notna(row['brand']): return row['brand']
-        return "İsimsiz"
+        """OSM verisinden anlamlı bir isim çıkarmaya çalışır."""
+        name = "İsimsiz"
+        if 'name' in row and pd.notna(row['name']):
+            name = row['name']
+        elif 'brand' in row and pd.notna(row['brand']):
+            name = row['brand']
+        elif 'name:en' in row and pd.notna(row['name:en']):
+            name = row['name:en']
+        elif 'operator' in row and pd.notna(row['operator']):
+            name = row['operator']
+        return name
 
     def _clean_osm_data(self, gdf):
         if gdf.empty: return gdf
@@ -67,35 +76,64 @@ class QualityScorer:
             if col in gdf.columns: gdf = gdf[gdf[col] != 'yes']
         return gdf
 
-    def _analyze_poi_details(self, osm_tags, max_radius_m):
+    def _analyze_poi_details(self, category_name, osm_tags, max_radius_m):
+        """
+        Hem istatistikleri döndürür hem de bulunan yerleri 'self.detected_places' listesine ekler.
+        """
         try:
             search_dist = max(max_radius_m, 3000)
             gdf = ox.features.features_from_point(center_point=self.point, tags=osm_tags, dist=search_dist)
             gdf = self._clean_osm_data(gdf)
-            if gdf.empty: return {"min_dist": float('inf'), "count": 0, "min_name": "Yok", "max_name": "Yok",
-                                  "max_dist": 0}
+
+            if gdf.empty:
+                return {"min_dist": float('inf'), "count": 0}
+
             gdf_utm = gdf.to_crs(self.crs_utm)
             point_utm = gpd.GeoSeries([self.point_geom], crs="EPSG:4326").to_crs(self.crs_utm).iloc[0]
             gdf_utm['distance'] = gdf_utm.distance(point_utm)
-            nearest = gdf_utm.nsmallest(1, 'distance').iloc[0]
-            relevant_pois = gdf_utm[gdf_utm['distance'] <= max_radius_m]
-            count = len(relevant_pois)
-            max_dist = 0;
-            max_name = "-"
-            if count > 0:
-                farthest = relevant_pois.nlargest(1, 'distance').iloc[0]
-                max_dist = farthest['distance'];
-                max_name = self._get_poi_name(farthest)
-            return {"min_dist": nearest['distance'], "min_name": self._get_poi_name(nearest), "max_dist": max_dist,
-                    "max_name": max_name, "count": count}
-        except Exception:
-            return {"min_dist": float('inf'), "count": 0, "min_name": "Hata", "max_name": "Hata", "max_dist": 0}
 
-    # --- GÜRÜLTÜ SKORU ---
+            # Mesafeye göre sırala
+            gdf_sorted = gdf_utm.sort_values('distance')
+
+            # En yakın
+            nearest = gdf_sorted.iloc[0]
+            min_dist = nearest['distance']
+
+            # İlgili menzil içindekiler
+            relevant_pois = gdf_sorted[gdf_sorted['distance'] <= max_radius_m]
+            count = len(relevant_pois)
+
+            # --- DETAYLARI KAYDET (EN YAKIN 5 TANESİ) ---
+            # Sadece menzil içindekileri veya menzil yoksa en yakın 1 taneyi al
+            pois_to_save = relevant_pois.head(5) if not relevant_pois.empty else gdf_sorted.head(1)
+
+            for _, row in pois_to_save.iterrows():
+                place_name = self._get_poi_name(row)
+                # Eğer çok uzaksa (10km+) listeye ekleme
+                if row['distance'] > 5000: continue
+
+                self.detected_places.append({
+                    "kategori": category_name,  # Örn: "market", "okul"
+                    "isim": place_name,  # Örn: "BİM", "Atatürk İlkokulu"
+                    "mesafe": int(row['distance']),  # Örn: 150 (metre)
+                    "tur": list(osm_tags.keys())[0]  # Örn: "shop", "amenity"
+                })
+            # ---------------------------------------------
+
+            return {"min_dist": min_dist, "count": count}
+
+        except Exception as e:
+            return {"min_dist": float('inf'), "count": 0}
+
+    # --- GÜRÜLTÜ ---
     def _calculate_noise_score(self):
         print("  -> Gürültü Skoru hesaplanıyor...")
         cfg_gurultu = self.config.GURULTU_AYARLARI
         max_dist = cfg_gurultu["max_etki_mesafesi"]
+
+        # Gürültü analizi karmaşık olduğu için buradaki detayları listeye eklemiyoruz
+        # Sadece skoru hesaplıyoruz. (İstenirse eklenebilir)
+
         tags_all_noise = {}
         for key, values in cfg_gurultu["ETKENLER"].items(): tags_all_noise[key] = list(values.keys())
         for key, puan in cfg_gurultu["SONUMLEYICILER"].items():
@@ -126,14 +164,16 @@ class QualityScorer:
         return normalize_linear(total_raw_noise_score, min_esik=cfg_gurultu["min_esik"],
                                 max_esik=cfg_gurultu["max_esik"], ters=True)
 
-    # --- YERLEŞİM SKORU ---
+    # --- YERLEŞİM ---
     def _calculate_settlement_score(self):
         print("  -> Yerleşim Skoru hesaplanıyor...")
         cfg_yerlesim = self.config.YERLESIM_AYARLARI
         final_score = 0;
         total_weight = 0
         for etken_adi, ayarlar in cfg_yerlesim["etiketler"].items():
-            data = self._analyze_poi_details(ayarlar["osm_tags"], ayarlar["max_limit"])
+            # Kategori ismini gönderiyoruz (örn: "okul")
+            data = self._analyze_poi_details(etken_adi, ayarlar["osm_tags"], ayarlar["max_limit"])
+
             puan = normalize_plateau(data["min_dist"], ayarlar["ideal_limit"], ayarlar["max_limit"])
             agirlik = cfg_yerlesim["agirliklar"].get(etken_adi, 0)
             final_score += puan * agirlik;
@@ -141,15 +181,13 @@ class QualityScorer:
         if total_weight == 0: return 0.0
         return final_score / total_weight
 
-    # --- YEŞİL & SOSYAL SKOR ---
+    # --- YEŞİL & SOSYAL ---
     def _calculate_ndvi_score(self):
         print("  -> Yeşil/Sosyal (NDVI): Veri kontrol ediliyor...")
         cached_value = cache_manager.get_cached_data(self.lat, self.lon, "ndvi")
         if cached_value is not None:
-            print(f"  -> [CACHE HIT] NDVI: {cached_value:.4f}")
             ham_ndvi = cached_value
         else:
-            print("  -> [CACHE MISS] Uyduya bağlanılıyor...")
             ham_ndvi = 0.3491  # Simülasyon
             cache_manager.save_data_to_cache(self.lat, self.lon, "ndvi", ham_ndvi)
         cfg_yesil = self.config.YESIL_SOSYAL_AYARLARI["NDVI"]
@@ -163,7 +201,9 @@ class QualityScorer:
         total_w = 0
         for etken, ayarlar in cfg_sosyal["etiketler"].items():
             max_r = ayarlar.get("max_mesafe", 1000)
-            data = self._analyze_poi_details(ayarlar["osm_tags"], max_r)
+
+            # Kategori ismini gönderiyoruz (örn: "market")
+            data = self._analyze_poi_details(etken, ayarlar["osm_tags"], max_r)
 
             if etken == "deniz_kenari":
                 self.distance_to_sea = data["min_dist"]
@@ -173,50 +213,42 @@ class QualityScorer:
             p_yogun = min(100, (data["count"] / ayarlar.get("yogunluk_hedefi", 1)) * 100)
             w_yakin = cfg_sosyal.get("yakinlik_agirligi", 0.7)
             w_yogun = cfg_sosyal.get("yogunluk_agirligi", 0.3)
-
             final_item = 0.0
             if data["min_dist"] != float('inf'):
                 final_item = (p_yakin * w_yakin) + (p_yogun * w_yogun)
-
             w = ayarlar.get("agirlik", 1)
             total_poi += final_item * w;
             total_w += w
-
         skor_poi = total_poi / total_w if total_w > 0 else 0
         w_ndvi = self.config.YESIL_SOSYAL_AYARLARI["NDVI"]["agirlik"]
         w_poi = cfg_sosyal["agirlik"]
         return (skor_ndvi * w_ndvi) + (skor_poi * w_poi)
 
-    # --- EĞİM ANALİZİ ---
+    # --- EĞİM VE VIBE (Aynı) ---
     def _get_elevations_batch(self, locations):
         try:
             url = "https://api.open-elevation.com/api/v1/lookup"
-            resp = requests.post(url, json={"locations": locations}, timeout=10)
-            if resp.status_code == 200:
-                return [r['elevation'] for r in resp.json()['results']]
+            resp = requests.post(url, json={"locations": locations}, timeout=5)
+            if resp.status_code == 200: return [r['elevation'] for r in resp.json()['results']]
         except Exception:
             return None
         return None
 
     def _calculate_slope_analysis(self):
-        print("  -> Eğim ve Yürünebilirlik Analizi yapılıyor...")
+        print("  -> Eğim Analizi yapılıyor...")
         delta = 0.0015
         points = [{"latitude": self.lat, "longitude": self.lon}, {"latitude": self.lat + delta, "longitude": self.lon},
                   {"latitude": self.lat - delta, "longitude": self.lon},
                   {"latitude": self.lat, "longitude": self.lon + delta},
                   {"latitude": self.lat, "longitude": self.lon - delta}]
-
         elevations = self._get_elevations_batch(points)
         if not elevations: return {"rakim": "Bilinmiyor", "egim_yuzde": 0, "durum": "Analiz Edilemedi"}
-
         center_elev = elevations[0];
         max_diff = 0
         for h in elevations[1:]:
             diff = abs(h - center_elev)
             if diff > max_diff: max_diff = diff
-
         egim_yuzde = (max_diff / 150) * 100
-
         cfg_egim = self.config.EGIM_AYARLARI["kategoriler"]
         durum = "Bilinmiyor"
         if egim_yuzde <= cfg_egim["duz"]["max_egim"]:
@@ -227,11 +259,8 @@ class QualityScorer:
             durum = cfg_egim["orta"]["etiket"]
         else:
             durum = cfg_egim["dik"]["etiket"]
-
-        print(f"  -> Rakım: {center_elev}m, Eğim: %{egim_yuzde:.1f} ({durum})")
         return {"rakim": center_elev, "egim_yuzde": round(egim_yuzde, 1), "durum": durum}
 
-    # --- MAHALLE KARAKTERİ ---
     def _calculate_neighborhood_vibe(self):
         print("  -> Mahalle Karakteri (Vibe) analizi yapılıyor...")
         cfg_vibe = self.config.VIBE_AYARLARI
@@ -255,7 +284,11 @@ class QualityScorer:
 
     # --- ANA ÇAĞRI ---
     def get_final_score(self):
-        print("\n--- SKORLAMA MOTORU (v3.3.0) BAŞLATILDI ---")
+        print("\n--- SKORLAMA MOTORU (v3.4.0 - Detaylı) BAŞLATILDI ---")
+
+        # Listeyi her analizde sıfırla
+        self.detected_places = []
+
         skor_gurultu = self._calculate_noise_score()
         skor_yerlesim = self._calculate_settlement_score()
         skor_sosyal_yesil = self._calculate_green_social_score()
@@ -267,8 +300,11 @@ class QualityScorer:
         genel = (skor_sosyal_yesil * cfg_final["yesil_sosyal"] + skor_yerlesim * cfg_final["yerlesim"] + skor_gurultu *
                  cfg_final["gurultu"])
         print("\n--- MOTOR HESAPLAMAYI BİTİRDİ ---")
+
         return {
             "genel_skor": genel,
             "alt_skorlar": {"yesil_sosyal": skor_sosyal_yesil, "yerlesim": skor_yerlesim, "gurultu": skor_gurultu},
-            "ekstra_analiz": {"egim": analiz_egim, "vibe": analiz_vibe}
+            "ekstra_analiz": {"egim": analiz_egim, "vibe": analiz_vibe},
+            # YENİ: Mekan Listesi
+            "mekanlar": self.detected_places
         }
