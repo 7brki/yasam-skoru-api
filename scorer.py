@@ -1,7 +1,7 @@
 # scorer.py
 # (v3.4.0 - DETAYLI MEKAN LİSTESİ MODU)
 # Artık sadece skor değil, bulunan yerlerin listesini de (İsim, Mesafe) döndürür.
-
+import concurrent.futures # <-- BU SATIRI EN ÜSTE EKLE
 import warnings
 import geopandas as gpd
 import pandas as pd
@@ -282,29 +282,48 @@ class QualityScorer:
         return {"etiket": cfg_vibe["kategoriler"][winner[0]]["etiket"],
                 "aciklama": cfg_vibe["kategoriler"][winner[0]]["aciklama"]}
 
-    # --- ANA ÇAĞRI ---
+# --- ANA ÇAĞRI (PARALEL İŞLEM - ROKET HIZI) ---
     def get_final_score(self):
-        print("\n--- SKORLAMA MOTORU (v3.4.0 - Detaylı) BAŞLATILDI ---")
+        print("\n--- SKORLAMA MOTORU (v3.5 - PARALEL) BAŞLATILDI ---")
+        
+        # Paralel işlem havuzu oluşturuyoruz (5 işçi aynı anda çalışacak)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Görevleri dağıt
+            future_gurultu = executor.submit(self._calculate_noise_score)
+            future_yerlesim = executor.submit(self._calculate_settlement_score)
+            future_sosyal = executor.submit(self._calculate_green_social_score)
+            future_egim = executor.submit(self._calculate_slope_analysis)
+            future_vibe = executor.submit(self._calculate_neighborhood_vibe)
+            
+            # Sonuçları topla (Hangisi önce biterse bitsin, hepsini bekler)
+            skor_gurultu = future_gurultu.result()
+            skor_yerlesim = future_yerlesim.result()
+            skor_sosyal_yesil = future_sosyal.result()
+            analiz_egim = future_egim.result()
+            analiz_vibe = future_vibe.result()
 
-        # Listeyi her analizde sıfırla
-        self.detected_places = []
-
-        skor_gurultu = self._calculate_noise_score()
-        skor_yerlesim = self._calculate_settlement_score()
-        skor_sosyal_yesil = self._calculate_green_social_score()
-
-        analiz_egim = self._calculate_slope_analysis()
-        analiz_vibe = self._calculate_neighborhood_vibe()
-
+        # (Hava Kalitesi pasif)
+        skor_hava_kalitesi = 0.0
+        
         cfg_final = self.config.FINAL_AGIRLIKLAR
-        genel = (skor_sosyal_yesil * cfg_final["yesil_sosyal"] + skor_yerlesim * cfg_final["yerlesim"] + skor_gurultu *
-                 cfg_final["gurultu"])
-        print("\n--- MOTOR HESAPLAMAYI BİTİRDİ ---")
-
+        genel_skor = (
+            skor_sosyal_yesil * cfg_final["yesil_sosyal"] +
+            skor_yerlesim * cfg_final["yerlesim"] +
+            skor_gurultu * cfg_final["gurultu"]
+        )
+        
+        print("--- MOTOR HESAPLAMAYI BİTİRDİ (PARALEL) ---")
+        
         return {
-            "genel_skor": genel,
-            "alt_skorlar": {"yesil_sosyal": skor_sosyal_yesil, "yerlesim": skor_yerlesim, "gurultu": skor_gurultu},
-            "ekstra_analiz": {"egim": analiz_egim, "vibe": analiz_vibe},
-            # YENİ: Mekan Listesi
-            "mekanlar": self.detected_places
+            "genel_skor": genel_skor,
+            "alt_skorlar": {
+                "yesil_sosyal": skor_sosyal_yesil,
+                "yerlesim": skor_yerlesim,
+                "gurultu": skor_gurultu,
+                "hava_kalitesi": skor_hava_kalitesi
+            },
+            "ekstra_analiz": {
+                "egim": analiz_egim,
+                "vibe": analiz_vibe
+            }
         }
