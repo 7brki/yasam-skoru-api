@@ -1,8 +1,7 @@
-# api.py
-# (v3.5.0 - CORS DÜZELTMESİ EKLENDİ)
+# api.py (v3.5 Final - CORS & Lists)
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware # <-- BU SATIR ÇOK ÖNEMLİ
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import time
@@ -10,30 +9,19 @@ from scorer import QualityScorer
 import config as cfg
 import os
 
-# --- GÜVENLİK ---
-# Render'da Environment Variable yoksa hata vermemesi için kontrol
-if not cfg.CLIENT_ID:
-    cfg.CLIENT_ID = os.environ.get("SH_CLIENT_ID")
-if not cfg.CLIENT_SECRET:
-    cfg.CLIENT_SECRET = os.environ.get("SH_CLIENT_SECRET")
+# GÜVENLİK: Anahtarları ortam değişkenlerinden al (Render için)
+if not cfg.CLIENT_ID: cfg.CLIENT_ID = os.environ.get("SH_CLIENT_ID")
+if not cfg.CLIENT_SECRET: cfg.CLIENT_SECRET = os.environ.get("SH_CLIENT_SECRET")
 
-app = FastAPI(
-    title="Yaşam Kalitesi Skoru API",
-    description="Emlak değerleme motoru (v3.5)",
-    version="3.5.0"
-)
+app = FastAPI(title="Yaşam Kalitesi Skoru API", version="3.5.0")
 
-# --- KRİTİK DÜZELTME: CORS AYARLARI ---
-# Bu blok, tarayıcının (GitHub Pages) sunucuya (Render) erişmesine izin verir.
-# OPTIONS isteğine 200 OK dönmesini sağlar.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Tüm sitelere izin ver
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], # GET, POST, OPTIONS hepsine izin ver
-    allow_headers=["*"], # Tüm başlıklara izin ver
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# -------------------------------------
 
 class SkorIstegi(BaseModel):
     lat: float
@@ -41,55 +29,41 @@ class SkorIstegi(BaseModel):
 
 @app.get("/")
 def ana_sayfa():
-    return {"durum": "aktif", "mesaj": "CORS ayarları aktif. API kullanıma hazır."}
+    return {"durum": "aktif", "mesaj": "API Çalışıyor."}
 
 @app.post("/hesapla")
 def skor_hesapla(istek: SkorIstegi):
-    print(f"--> API İsteği Geldi: {istek.lat}, {istek.lon}")
-    baslangic = time.time()
-    
+    print(f"--> İSTEK: {istek.lat}, {istek.lon}")
+    start = time.time()
     try:
-        motor = QualityScorer(lat=istek.lat, lon=istek.lon, config=cfg)
-        sonuc = motor.get_final_score()
-        sure = round(time.time() - baslangic, 2)
+        motor = QualityScorer(istek.lat, istek.lon, cfg)
+        res = motor.get_final_score()
+        dur = round(time.time() - start, 2)
         
-        analiz_detay = sonuc['ekstra_analiz'].get('detay', {})
-        analiz_vibe = sonuc['ekstra_analiz'].get('vibe', {})
+        mekanlar = sorted(res.get("mekanlar", []), key=lambda x: x["mesafe"])
+        detay = res['ekstra_analiz'].get('egim', {})
+        vibe = res['ekstra_analiz'].get('vibe', {})
         
-        # Mekan listesini hazırla
-        mekanlar = sorted(sonuc.get("mekanlar", []), key=lambda x: x["mesafe"])
-        
-        cevap = {
+        return {
             "durum": "basarili",
-            "meta": {
-                "islem_suresi": f"{sure} saniye",
-                "koordinat": {"lat": istek.lat, "lon": istek.lon}
-            },
+            "meta": { "islem_suresi": f"{dur} saniye", "koordinat": {"lat": istek.lat, "lon": istek.lon} },
             "ozellikler": {
-                "cografya": {
-                    "rakim": f"{analiz_detay.get('rakim', '0')}m",
-                    "yurunebilirlik": analiz_detay.get('durum', '-'),
-                    "egim_orani": f"%{analiz_detay.get('egim_yuzde', 0)}"
-                },
-                "mahalle_karakteri": {
-                    "etiket": analiz_vibe.get('etiket', '-'),
-                    "aciklama": analiz_vibe.get('aciklama', '-')
-                }
+                "cografya": { "rakim": f"{detay.get('rakim',0)}m", "yurunebilirlik": detay.get('durum','-'), "egim_orani": f"%{detay.get('egim_yuzde',0)}" },
+                "mahalle_karakteri": { "etiket": vibe.get('etiket','-'), "aciklama": vibe.get('aciklama','-') }
             },
             "yakin_yerler": mekanlar,
             "skor_ozeti": {
-                "genel_skor": round(sonuc["genel_skor"], 1),
+                "genel_skor": round(res["genel_skor"], 1),
                 "detaylar": {
-                    "yesil_sosyal": round(sonuc["alt_skorlar"]["yesil_sosyal"], 1),
-                    "yerlesim": round(sonuc["alt_skorlar"]["yerlesim"], 1),
-                    "gurultu": round(sonuc["alt_skorlar"]["gurultu"], 1)
+                    "yesil_sosyal": round(res["alt_skorlar"]["yesil_sosyal"], 1),
+                    "yerlesim": round(res["alt_skorlar"]["yerlesim"], 1),
+                    "gurultu": round(res["alt_skorlar"]["gurultu"], 1),
+                    "hava_kalitesi": "Veri Yok"
                 }
             }
         }
-        return cevap
-
     except Exception as e:
-        print(f"KRİTİK HATA: {e}")
+        print(f"HATA: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
