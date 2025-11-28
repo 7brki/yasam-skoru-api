@@ -1,36 +1,18 @@
 # api.py
-# (v3.3.0 - CORS İzinleri Eklendi)
+# (v3.4.0 - Detaylı Mekan Listesi Eklendi)
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware # <-- YENİ EKLENDİ
 from pydantic import BaseModel
 import uvicorn
 import time
 from scorer import QualityScorer
 import config as cfg
 
-# ... (Güvenlik ve Config kısımları aynı) ...
+# ... (Güvenlik ve Başlangıç kodları aynı) ...
+# (cfg.CLIENT_ID = "..." kısmını unutma!)
 
-app = FastAPI(
-    title="Yaşam Kalitesi Skoru API",
-    description="Emlak değerleme motoru (v3.3)",
-    version="3.3.0"
-)
+app = FastAPI(title="Yaşam Kalitesi Skoru API", version="3.4.0")
 
-# --- YENİ: CORS AYARLARI (BAĞLANTI İÇİN ŞART) ---
-# Bu blok, tarayıcının API'ye erişmesine izin verir.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # "*" = Herkese izin ver (Güvenlik için ileride site adresinle değiştirirsin)
-    allow_credentials=True,
-    allow_methods=["*"], # GET, POST vb. hepsine izin ver
-    allow_headers=["*"],
-)
-# ------------------------------------------------
-
-# ... (Geri kalan kodlar AYNI kalsın: class SkorIstegi, @app.get, @app.post vb.) ...
-# (Kodun tamamını tekrar yapıştırmana gerek yok, sadece app = FastAPI(...) altına
-# yukarıdaki add_middleware bloğunu ekle ve en üste import'u ekle yeterli.)
 
 class SkorIstegi(BaseModel):
     lat: float
@@ -39,8 +21,7 @@ class SkorIstegi(BaseModel):
 
 @app.get("/")
 def ana_sayfa():
-    return {"durum": "aktif", "mesaj": "Yaşam Kalitesi Skoru API (v3.2) Çalışıyor.",
-            "kullanim": "/docs adresine giderek test edebilirsiniz."}
+    return {"durum": "aktif"}
 
 
 @app.post("/hesapla")
@@ -53,12 +34,15 @@ def skor_hesapla(istek: SkorIstegi):
         sonuc = motor.get_final_score()
         sure = round(time.time() - baslangic, 2)
 
+        # Mekan listesini mesafeye göre sırala
+        mekanlar = sorted(sonuc["mekanlar"], key=lambda x: x["mesafe"])
+
         cevap = {
             "durum": "basarili",
             "meta": {
                 "islem_suresi": f"{sure} saniye",
                 "koordinat": {"lat": istek.lat, "lon": istek.lon},
-                "algoritma": "v3.2_sade_model"
+                "algoritma": "v3.4_detayli_analiz"
             },
             "ozellikler": {
                 "cografya": {
@@ -71,6 +55,8 @@ def skor_hesapla(istek: SkorIstegi):
                     "aciklama": sonuc['ekstra_analiz']['vibe']['aciklama']
                 }
             },
+            "yakin_yerler": mekanlar,  # <-- YENİ EKLENEN LİSTE
+
             "skor_ozeti": {
                 "genel_skor": round(sonuc["genel_skor"], 1),
                 "detaylar": {
