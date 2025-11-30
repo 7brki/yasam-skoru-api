@@ -1,12 +1,12 @@
 # api.py
-# (v3.6.0 - YAPAY ZEKA YORUMCUSU EKLENDİ)
+# (v3.6.1 - AI MODEL GÜNCELLEMESİ VE YEDEKLEME)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import time
-import google.generativeai as genai # YENİ KÜTÜPHANE
+import google.generativeai as genai
 from scorer import QualityScorer
 import config as cfg
 import os
@@ -16,12 +16,10 @@ if not cfg.CLIENT_ID: cfg.CLIENT_ID = os.environ.get("SH_CLIENT_ID")
 if not cfg.CLIENT_SECRET: cfg.CLIENT_SECRET = os.environ.get("SH_CLIENT_SECRET")
 
 # --- YAPAY ZEKA AYARLARI ---
-# Buraya Google AI Studio'dan aldığın anahtarı yapıştır
-GEMINI_API_KEY = "AIzaSyDewXK4gL3w8Di4yE3oVPZBxeFhwK8MTzM" 
-
+GEMINI_API_KEY = "AIzaSyDewXK4gL3w8Di4yE3oVPZBxeFhwK8MTzM" # Senin Anahtarın
 genai.configure(api_key=GEMINI_API_KEY)
 
-app = FastAPI(title="Yaşam Kalitesi Skoru API", version="3.6.0")
+app = FastAPI(title="Yaşam Kalitesi Skoru API", version="3.6.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,39 +35,36 @@ class SkorIstegi(BaseModel):
 
 def generate_ai_comment(skorlar, ozellikler):
     """
-    Skorları ve özellikleri Gemini'ye gönderip emlakçı yorumu alır.
+    Önce Flash modelini dener, hata verirse Pro modeline geçer.
     """
+    prompt = f"""
+    Sen bir Gayrimenkul Danışmanısın. Şu verilere göre bu mülkü 2 cümlede özetle:
+    Genel Puan: {skorlar['genel_skor']}, Gürültü: {skorlar['detaylar']['gurultu']} (Yüksek=Sessiz),
+    Yürüyüş: {ozellikler['cografya']['yurunebilirlik']}, Karakter: {ozellikler['mahalle_karakteri']['etiket']}.
+    Olumlu konuş. Türkçe cevap ver.
+    """
+    
+    # 1. Deneme: En Hızlı Model (Gemini 1.5 Flash)
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = f"""
-        Sen deneyimli, samimi ve profesyonel bir Gayrimenkul Danışmanısın.
-        Aşağıdaki verilere dayanarak, bu mülk hakkında potansiyel alıcıya 2-3 cümlelik özet bir yorum yap.
-        
-        VERİLER:
-        - Genel Yaşam Skoru: {skorlar['genel_skor']}/100
-        - Yeşil Alan/Sosyal: {skorlar['detaylar']['yesil_sosyal']}/100
-        - Yerleşim/Erişim: {skorlar['detaylar']['yerlesim']}/100
-        - Gürültü Seviyesi: {skorlar['detaylar']['gurultu']}/100 (Yüksek puan = Sessiz, Düşük puan = Gürültülü)
-        - Yürünebilirlik: {ozellikler['cografya']['yurunebilirlik']}
-        - Mahalle Havası: {ozellikler['mahalle_karakteri']['etiket']}
-        
-        YORUM TONU:
-        - Samimi ama profesyonel ol.
-        - Verileri tekrar etme (örneğin "puanı 80" deme), yorumla.
-        - Olumlu yönleri öne çıkar, olumsuzlukları nazikçe belirt.
-        - Türkçe cevap ver.
-        """
-        
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        print(f"AI Hatası: {e}")
-        return "Yapay zeka şu anda yorum yapamıyor, ancak veriler harika görünüyor!"
+    except Exception as e1:
+        print(f"AI Flash Hatası: {e1}")
+        
+        # 2. Deneme: Yedek Model (Gemini Pro - Daha Eski ve Uyumlu)
+        try:
+            print("Yedek model (gemini-pro) deneniyor...")
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e2:
+            print(f"AI Pro Hatası: {e2}")
+            return "Yapay zeka şu anda yoğun, ancak veriler harika görünüyor!"
 
 @app.get("/")
 def ana_sayfa():
-    return {"durum": "aktif", "mesaj": "API v3.6 (AI Destekli) Çalışıyor."}
+    return {"durum": "aktif", "mesaj": "API v3.6.1 Çalışıyor."}
 
 @app.post("/hesapla")
 def skor_hesapla(istek: SkorIstegi):
@@ -84,7 +79,6 @@ def skor_hesapla(istek: SkorIstegi):
         analiz_vibe = sonuc['ekstra_analiz'].get('vibe', {})
         mekanlar = sorted(sonuc.get("mekanlar", []), key=lambda x: x["mesafe"])
         
-        # JSON Veri Yapısı
         cevap_data = {
             "ozellikler": {
                 "cografya": {
@@ -107,14 +101,9 @@ def skor_hesapla(istek: SkorIstegi):
             }
         }
         
-        # --- YAPAY ZEKA YORUMU EKLE ---
-        # Veriler hazır olduktan sonra AI'ya gönderiyoruz
-        ai_yorumu = generate_ai_comment(cevap_data["skor_ozeti"], cevap_data["ozellikler"])
+        # AI Yorumunu al (Hata korumalı fonksiyon)
+        cevap_data["ai_yorumu"] = generate_ai_comment(cevap_data["skor_ozeti"], cevap_data["ozellikler"])
         
-        # Yorumu cevaba ekle
-        cevap_data["ai_yorumu"] = ai_yorumu
-        
-        # Meta veriyi ve dış yapıyı oluştur
         final_response = {
             "durum": "basarili",
             "meta": {
@@ -122,7 +111,7 @@ def skor_hesapla(istek: SkorIstegi):
                 "koordinat": {"lat": istek.lat, "lon": istek.lon},
                 "algoritma": "v3.6_ai_commentary"
             },
-            **cevap_data, # Verileri birleştir
+            **cevap_data,
             "yakin_yerler": mekanlar
         }
         
@@ -134,4 +123,3 @@ def skor_hesapla(istek: SkorIstegi):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
