@@ -40,7 +40,7 @@ def generate_ai_comment(skorlar, ozellikler):
     Skorları ve özellikleri Gemini'ye gönderip emlakçı yorumu alır.
     """
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
         Sen deneyimli, samimi ve profesyonel bir Gayrimenkul Danışmanısın.
@@ -134,3 +134,4 @@ def skor_hesapla(istek: SkorIstegi):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
