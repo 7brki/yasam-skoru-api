@@ -9,18 +9,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <script>
         tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'], heading: ['Poppins', 'sans-serif'] },
-                    colors: { dark: '#0f172a', glass: 'rgba(255, 255, 255, 0.05)' }
-                }
-            }
+            theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'], heading: ['Poppins', 'sans-serif'] }, colors: { dark: '#0f172a', glass: 'rgba(255, 255, 255, 0.05)' } } }
         }
     </script>
-    
     <style>
         body { background-color: #0f172a; color: #f8fafc; }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -32,6 +25,14 @@
         .custom-scroll::-webkit-scrollbar { width: 6px; }
         .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
         .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        
+        /* AI Gradient Text */
+        .ai-text {
+            background: linear-gradient(to right, #60a5fa, #c084fc, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
     </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col selection:bg-blue-500 selection:text-white">
@@ -46,7 +47,7 @@
             <i class="fa-solid fa-city text-blue-400 text-2xl"></i>
             <span class="font-heading text-xl font-bold tracking-wide">Livability<span class="text-blue-400">AI</span></span>
         </div>
-        <span class="text-xs font-mono text-slate-400 border border-slate-700 px-2 py-1 rounded">v3.5 SEARCH</span>
+        <span class="text-xs font-mono text-slate-400 border border-slate-700 px-2 py-1 rounded">v3.6 AI</span>
     </header>
 
     <main class="flex-grow container mx-auto px-4 py-10 max-w-5xl">
@@ -56,7 +57,7 @@
                 Evinizin Gerçek Değeri
             </h1>
             <p class="text-slate-400 text-sm md:text-base max-w-2xl mx-auto">
-                İster arayın, ister haritadan seçin. Yapay zeka analiz etsin.
+                Yapay zeka destekli konum analizi ve uzman yorumu.
             </p>
         </div>
 
@@ -64,14 +65,9 @@
             <div class="flex gap-2">
                 <div class="relative flex-grow">
                     <i class="fa-solid fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
-                    <input type="text" id="location-search" 
-                        placeholder="Şehir, ilçe veya mahalle arayın... (Örn: Kadıköy, Moda)" 
-                        class="w-full bg-slate-800/80 border border-slate-600 text-white pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition placeholder-slate-500"
-                        onkeypress="handleKeyPress(event)">
+                    <input type="text" id="location-search" placeholder="Şehir, ilçe veya mahalle arayın... (Örn: Kadıköy)" class="w-full bg-slate-800/80 border border-slate-600 text-white pl-12 pr-4 py-3 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition placeholder-slate-500" onkeypress="handleKeyPress(event)">
                 </div>
-                <button onclick="searchLocation()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold transition flex items-center gap-2">
-                    <span>Bul</span>
-                </button>
+                <button onclick="searchLocation()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold transition flex items-center gap-2"><span>Bul</span></button>
             </div>
         </div>
 
@@ -87,11 +83,30 @@
 
         <div id="loading-screen" class="hidden fixed inset-0 bg-slate-900/90 z-[60] flex flex-col items-center justify-center backdrop-blur-md">
             <div class="loader mb-6"></div>
-            <h3 class="text-xl font-bold text-white mb-2">Analiz Yapılıyor</h3>
+            <h3 class="text-xl font-bold text-white mb-2">Yapay Zeka Analiz Ediyor</h3>
             <p id="loading-text" class="text-slate-400 text-sm font-mono">Uydu verileri taranıyor...</p>
         </div>
 
         <div id="results-section" class="hidden space-y-6 fade-in pb-20">
+            
+            <div class="glass rounded-3xl p-6 border border-blue-500/30 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-400 to-purple-500"></div>
+                <div class="flex items-start gap-4">
+                    <div class="p-3 bg-blue-500/10 rounded-xl text-blue-400 hidden md:block">
+                        <i class="fa-solid fa-robot text-2xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                            <span class="ai-text">YAPAY ZEKA YORUMU</span>
+                            <i class="fa-solid fa-wand-magic-sparkles text-purple-400 text-xs"></i>
+                        </h3>
+                        <p id="ai-comment" class="text-slate-200 leading-relaxed text-sm md:text-base">
+                            Yorum oluşturuluyor...
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="col-span-1 glass rounded-3xl p-6 flex flex-col items-center justify-center text-center relative overflow-hidden group">
                     <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -166,85 +181,54 @@
     
     <script>
         // --- AYARLAR ---
-        // BURAYA KENDİ RENDER URL'İNİ YAZ (Sonunda /hesapla OLMASIN)
         const BASE_API_URL = "https://yasam-skoru-api.onrender.com"; 
 
-        const map = L.map('map').setView([39.933, 32.859], 6); // Türkiye Geneli Başlangıç
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+        const map = L.map('map').setView([39.933, 32.859], 6); 
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
 
-        let selectedMarker = null;
-        let selectedLat = null;
-        let selectedLon = null;
+        let selectedMarker = null; let selectedLat = null; let selectedLon = null;
 
-        map.on('click', function(e) {
-            updateMarker(e.latlng.lat, e.latlng.lng);
-        });
+        map.on('click', function(e) { updateMarker(e.latlng.lat, e.latlng.lng); });
         
         function updateMarker(lat, lng) {
-            selectedLat = lat;
-            selectedLon = lng;
-            
+            selectedLat = lat; selectedLon = lng;
             if (selectedMarker) map.removeLayer(selectedMarker);
             selectedMarker = L.marker([lat, lng]).addTo(map);
-            
             const btn = document.getElementById('analyze-btn');
             btn.disabled = false;
             btn.className = "group relative px-8 py-3 bg-blue-600 text-white rounded-xl font-bold transition-all duration-300 w-full md:w-auto min-w-[200px] flex items-center justify-center gap-2 hover:scale-105 hover:bg-blue-500 shadow-lg shadow-blue-500/30";
             btn.innerHTML = `<span>Analiz Et</span> <i class="fa-solid fa-rocket"></i>`;
         }
 
-        // --- YENİ: KONUM ARAMA FONKSİYONU ---
         async function searchLocation() {
             const query = document.getElementById('location-search').value;
             if (!query) return;
-            
             const btn = document.querySelector('button[onclick="searchLocation()"]');
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i>`;
-            
             try {
-                // Nominatim (OpenStreetMap) Ücretsiz Arama API'si
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
                 const results = await response.json();
-                
                 if (results.length > 0) {
                     const lat = parseFloat(results[0].lat);
                     const lon = parseFloat(results[0].lon);
-                    
-                    map.flyTo([lat, lon], 14); // Oraya uç
-                    updateMarker(lat, lon); // Pini koy
-                } else {
-                    alert("Konum bulunamadı!");
-                }
-            } catch (error) {
-                alert("Arama hatası: " + error.message);
-            } finally {
-                btn.innerHTML = originalText;
-            }
+                    map.flyTo([lat, lon], 14);
+                    updateMarker(lat, lon);
+                } else { alert("Konum bulunamadı!"); }
+            } catch (error) { alert("Arama hatası: " + error.message); } 
+            finally { btn.innerHTML = originalText; }
         }
         
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                searchLocation();
-            }
-        }
-        // ------------------------------------
+        function handleKeyPress(event) { if (event.key === 'Enter') searchLocation(); }
 
         async function analyzeLocation() {
             if (!selectedLat || !selectedLon) return;
-
             const loading = document.getElementById('loading-screen');
             const loadingText = document.getElementById('loading-text');
             loading.classList.remove('hidden');
-            
-            const messages = ["Uydu görüntüleri işleniyor...", "Gürültü haritası taranıyor...", "Mekanlar listeleniyor...", "Skor hesaplanıyor..."];
+            const messages = ["Uydu görüntüleri işleniyor...", "Gürültü haritası taranıyor...", "Mekanlar listeleniyor...", "Yapay Zeka yorumluyor..."];
             let msgIdx = 0;
-            const msgInterval = setInterval(() => {
-                loadingText.innerText = messages[msgIdx];
-                msgIdx = (msgIdx + 1) % messages.length;
-            }, 2000);
+            const msgInterval = setInterval(() => { loadingText.innerText = messages[msgIdx]; msgIdx = (msgIdx + 1) % messages.length; }, 2000);
 
             try {
                 const response = await fetch(`${BASE_API_URL}/hesapla`, {
@@ -252,22 +236,13 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ lat: selectedLat, lon: selectedLon })
                 });
-
                 if (!response.ok) throw new Error("API Bağlantı Hatası");
-
                 const data = await response.json();
                 updateUI(data);
                 document.getElementById('results-section').classList.remove('hidden');
-                setTimeout(() => {
-                    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
-                }, 100);
-
-            } catch (error) {
-                alert("Hata: " + error.message + "\nAPI adresini index.html içinde düzelttin mi?");
-            } finally {
-                clearInterval(msgInterval);
-                loading.classList.add('hidden');
-            }
+                setTimeout(() => { document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' }); }, 100);
+            } catch (error) { alert("Hata: " + error.message + "\nAPI adresini index.html içinde düzelttin mi?"); } 
+            finally { clearInterval(msgInterval); loading.classList.add('hidden'); }
         }
 
         function updateUI(data) {
@@ -275,21 +250,22 @@
             const skor = data.skor_ozeti;
             const mekanlar = data.yakin_yerler || []; 
 
+            // YENİ: AI YORUMU GÜNCELLEME
+            const aiComment = data.ai_yorumu || "Yapay zeka yorumu şu an kullanılamıyor.";
+            document.getElementById('ai-comment').innerText = aiComment;
+
             const circle = document.getElementById('score-circle');
             const offset = 283 - (skor.genel_skor / 100) * 283;
             circle.style.strokeDashoffset = offset;
-            
             let color = "#ef4444"; let label = "Zayıf";
             if(skor.genel_skor > 50) { color = "#f59e0b"; label = "Ortalama"; }
             if(skor.genel_skor > 70) { color = "#3b82f6"; label = "İyi"; }
             if(skor.genel_skor > 85) { color = "#10b981"; label = "Mükemmel"; }
-            
             circle.style.stroke = color;
             document.getElementById('main-score').innerText = skor.genel_skor;
             document.getElementById('main-score').style.color = color;
             const labelEl = document.getElementById('score-label');
-            labelEl.innerText = label;
-            labelEl.style.color = color;
+            labelEl.innerText = label; labelEl.style.color = color;
 
             document.getElementById('vibe-tag').innerText = ozellik.mahalle_karakteri.etiket;
             document.getElementById('vibe-desc').innerText = ozellik.mahalle_karakteri.aciklama;
@@ -303,10 +279,8 @@
 
             const listContainer = document.getElementById('places-container');
             listContainer.innerHTML = ""; 
-            
-            if (mekanlar.length === 0) {
-                listContainer.innerHTML = '<div class="col-span-2 text-center text-slate-500 italic p-4">Yakınlarda önemli bir yer bulunamadı.</div>';
-            } else {
+            if (mekanlar.length === 0) { listContainer.innerHTML = '<div class="col-span-2 text-center text-slate-500 italic p-4">Yakınlarda önemli bir yer bulunamadı.</div>'; } 
+            else {
                 const getIcon = (cat) => {
                     if(cat.includes('market')) return 'fa-cart-shopping text-green-400';
                     if(cat.includes('okul')) return 'fa-graduation-cap text-blue-400';
@@ -316,7 +290,6 @@
                     if(cat.includes('deniz')) return 'fa-water text-cyan-400';
                     return 'fa-location-dot text-slate-400';
                 };
-
                 mekanlar.forEach(mekan => {
                     const itemHtml = `
                         <div class="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5 hover:bg-white/10 transition">
@@ -332,8 +305,7 @@
                             <div class="text-right">
                                 <div class="font-mono text-sm text-blue-300">${mekan.mesafe}m</div>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                     listContainer.innerHTML += itemHtml;
                 });
             }
