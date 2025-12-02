@@ -1,15 +1,14 @@
 # api.py
-# (v4.0.0 - NEXT GEN AI: Google GenAI SDK & Gemini 2.0/3.0)
+# (v3.7.0 - STABIL SURUM: google-generativeai + gemini-pro)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import time
-# --- YENİ KÜTÜPHANE ---
-from google import genai
-from google.genai import types
-# ----------------------
+# --- ESKİ AMA GÜVENİLİR KÜTÜPHANE ---
+import google.generativeai as genai
+# ------------------------------------
 from scorer import QualityScorer
 import config as cfg
 import os
@@ -19,9 +18,15 @@ if not cfg.CLIENT_ID: cfg.CLIENT_ID = os.environ.get("SH_CLIENT_ID")
 if not cfg.CLIENT_SECRET: cfg.CLIENT_SECRET = os.environ.get("SH_CLIENT_SECRET")
 
 # --- YAPAY ZEKA AYARLARI ---
-GEMINI_API_KEY = "AIzaSyDewXK4gL3w8Di4yE3oVPZBxeFhwK8MTzM" # (Veya os.environ'dan çek)
+# BURAYA YENİ ALDIĞIN ANAHTARI YAPIŞTIR
+GEMINI_API_KEY = "AIzaSyDs23xhaclr2WsKnrp15v4ow8l3TQYgdcI" 
 
-app = FastAPI(title="Yaşam Kalitesi Skoru API", version="4.0.0")
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+except Exception as e:
+    print(f"AI Config Hatası: {e}")
+
+app = FastAPI(title="Yaşam Kalitesi Skoru API", version="3.7.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,69 +41,37 @@ class SkorIstegi(BaseModel):
     lon: float
 
 def generate_ai_comment(skorlar, ozellikler):
-    """
-    Yeni Google GenAI SDK kullanarak yorum üretir.
-    Gemini 3.0 ve 2.0 modellerini önceliklendirir.
-    """
     prompt = f"""
-    Sen bir Gayrimenkul Danışmanısın. Şu verilere göre bu mülkü 2 kısa cümlede özetle:
-    
-    - Genel Puan: {skorlar['genel_skor']}/100
-    - Gürültü: {skorlar['detaylar']['gurultu']} (Yüksek puan sessiz demek)
-    - Erişim: {skorlar['detaylar']['yerlesim']}
-    - Sosyal: {skorlar['detaylar']['yesil_sosyal']}
-    - Yürünebilirlik: {ozellikler['cografya']['yurunebilirlik']}
-    - Mahalle: {ozellikler['mahalle_karakteri']['etiket']}
-    
-    Tonun samimi, pozitif ve satış odaklı olsun. Türkçe cevap ver.
+    Sen bir Gayrimenkul Danışmanısın. Şu verilere göre bu mülkü 2 cümlede özetle:
+    Genel Puan: {skorlar['genel_skor']}/100, Gürültü: {skorlar['detaylar']['gurultu']} (Yüksek=Sessiz),
+    Yürüyüş: {ozellikler['cografya']['yurunebilirlik']}, Karakter: {ozellikler['mahalle_karakteri']['etiket']}.
+    Olumlu konuş. Türkçe cevap ver.
     """
     
-    # 2025 Standartlarında Model Listesi
-    models_to_try = [
-        'gemini-2.0-flash-exp', # En hızlı ve yeni
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',      # Stabil yedek
-        'gemini-1.5-pro'
-    ]
+    # SADECE BU İKİ MODELİ DENİYORUZ (EN STABİL OLANLAR)
+    models = ['gemini-pro', 'gemini-1.5-flash']
     
-    # Yeni Client Yapısı
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Client Başlatma Hatası: {e}")
-        return "AI Bağlantı Hatası."
-
-    for model_name in models_to_try:
+    for m in models:
         try:
-            print(f"AI deneniyor: {model_name}...")
-            
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7, # Biraz yaratıcılık
-                    max_output_tokens=100
-                )
-            )
-            
+            print(f"AI deneniyor: {m}...")
+            model = genai.GenerativeModel(m)
+            response = model.generate_content(prompt)
             if response and response.text:
                 return response.text
-                
         except Exception as e:
-            print(f"Model Hatası ({model_name}): {e}")
+            print(f"Hata ({m}): {e}")
             continue
 
     return "Yapay zeka şu anda yoğun, ancak veriler harika görünüyor!"
 
 @app.get("/")
 def ana_sayfa():
-    return {"durum": "aktif", "mesaj": "API v4.0 (Next-Gen AI) Çalışıyor."}
+    return {"durum": "aktif", "mesaj": "API v3.7 Çalışıyor."}
 
 @app.post("/hesapla")
 def skor_hesapla(istek: SkorIstegi):
     print(f"--> API İsteği Geldi: {istek.lat}, {istek.lon}")
     baslangic = time.time()
-    
     try:
         motor = QualityScorer(lat=istek.lat, lon=istek.lon, config=cfg)
         sonuc = motor.get_final_score()
@@ -128,25 +101,17 @@ def skor_hesapla(istek: SkorIstegi):
                 }
             }
         }
-        
-        # AI Yorumu
         cevap_data["ai_yorumu"] = generate_ai_comment(cevap_data["skor_ozeti"], cevap_data["ozellikler"])
         
-        final_response = {
+        return {
             "durum": "basarili",
-            "meta": {
-                "islem_suresi": f"{round(time.time() - baslangic, 2)} saniye",
-                "koordinat": {"lat": istek.lat, "lon": istek.lon},
-                "algoritma": "v4.0_genai_sdk"
-            },
+            "meta": { "islem_suresi": f"{round(time.time() - baslangic, 2)} saniye" },
             **cevap_data,
             "yakin_yerler": mekanlar
         }
-        
-        return final_response
 
     except Exception as e:
-        print(f"KRİTİK API HATASI: {e}")
+        print(f"KRİTİK HATA: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
