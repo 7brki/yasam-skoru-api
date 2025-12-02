@@ -8,4 +8,4 @@ shapely
 rasterio
 sentinelhub
 numpy
-google-genai
+google-generativeai
